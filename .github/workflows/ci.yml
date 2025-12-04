@@ -1,0 +1,81 @@
+# CI Workflow for GPTNeo Exploration and FineTuning Notebooks
+
+name: CI Workflow
+
+# Controls when the action will run.
+# For now, trigger the workflow on push and pull request events for the main branch.
+# Trigger on push to main, pull requests targeting main.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This job builds and tests the Python project
+  build_and_test:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Set strategy for matrix build if needed (e.g., different Python versions)
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository into the workspace so your job can access it
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Set up Python environment with the specified version
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          # Cache pip dependencies to speed up subsequent runs
+          cache: 'pip'
+
+      # Install dependencies using uv (modern Python package manager)
+      # Assumes a pyproject.toml or requirements.txt is present for dependencies
+      - name: Install dependencies with uv
+        run: |
+          python -m pip install --upgrade pip
+          # Install uv if not already available (usually managed by setup-python or pre-installed)
+          # pip install uv
+          uv pip install --system --upgrade
+          uv pip install -r requirements.txt # Or pyproject.toml if using Poetry/PDM style dependencies
+          uv pip install ipykernel # Needed for Jupyter notebooks
+
+      # Run linters and formatters (Ruff) - FAST
+      - name: Lint with Ruff
+        run: |
+          # Ensure Ruff is installed
+          uv pip install ruff
+          ruff check .
+          ruff format .
+
+      # Run tests using Pytest
+      # This step assumes your tests are in a 'tests/' directory and discoverable by pytest
+      - name: Test with Pytest
+        run: |
+          # Ensure pytest is installed
+          uv pip install pytest
+          pytest
+
+      # Optional: Run Jupyter notebooks (e.g., using nbconvert for testing)
+      # This is a more advanced step and might require careful setup
+      # Example: Convert notebooks to tests or scripts
+      # - name: Run Jupyter Notebooks
+      #   run: |
+      #     pip install nbconvert
+      #     jupyter nbconvert --to notebook --execute --inplace notebooks/*.ipynb
+
+      # Optional: Upload coverage reports if coverage is generated
+      # - name: Upload coverage reports to Codecov
+      #   uses: codecov/codecov-action@v3
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }} # Required for private repos
+      #     files: ./coverage.xml # Path to your coverage report
+      #     fail_ci_if_error: true
